@@ -3,12 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
+    "dev": "node scripts/next-runner.mjs dev",
+    "build": "node scripts/next-runner.mjs build",
+    "start": "node scripts/next-runner.mjs start",
+    "lint": "next lint",
+    "init:admin": "node --env-file-if-exists=.env.local --env-file-if-exists=.env scripts/init-admin.mjs"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",
     "lucide-react": "^0.475.0",
     "mongoose": "^8.10.1",
@@ -19,6 +21,7 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@next/swc-wasm-nodejs": "^15.5.29",
     "@types/node": "^22.13.4",
     "@types/react": "^19.0.10",
     "@types/react-dom": "^19.0.4",
@@ -28,4 +31,3 @@
     "typescript": "^5.7.3"
   }
 }
-

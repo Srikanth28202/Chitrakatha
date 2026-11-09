@@ -19,3 +19,27 @@ export function formatINR(amount: number): string {
   }).format(amount);
 }
 
+/**
+ * Format an ISO date string (or Date) for admin display.
+ */
+export function formatDate(value: string | Date | undefined): string {
+  if (!value) return '—';
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return new Intl.DateTimeFormat('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(date);
+}
+
+/**
+ * Format an ISO date string (or Date) as a `yyyy-mm-dd` input value.
+ */
+export function toDateInputValue(value: string | Date | undefined): string {
+  if (!value) return '';
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toISOString().slice(0, 10);
+}
+
