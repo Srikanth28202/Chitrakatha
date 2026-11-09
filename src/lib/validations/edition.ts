@@ -20,3 +20,4 @@ export const editionSlugParamSchema = z.object({
 });
 
 export type EditionQueryParams = z.infer<typeof editionQuerySchema>;
+

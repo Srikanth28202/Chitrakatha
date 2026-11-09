@@ -124,3 +124,4 @@ export function mapCollectionItemToEditionDocument(item: CollectionItem): Partia
 export function getSeedEditions(): Partial<IEdition>[] {
   return monthlyCollectionsData.map(mapCollectionItemToEditionDocument);
 }
+

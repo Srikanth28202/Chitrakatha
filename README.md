@@ -128,3 +128,4 @@ npm start
 ## ✦ License
 
 Private property of Chitrakatha (ಚಿತ್ರಕಥಾ). All rights reserved.
+

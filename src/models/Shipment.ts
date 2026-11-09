@@ -107,3 +107,4 @@ const ShipmentSchema = new Schema<IShipment>(
 
 export const Shipment: Model<IShipment> =
   mongoose.models.Shipment || mongoose.model<IShipment>('Shipment', ShipmentSchema);
+

@@ -135,3 +135,4 @@ SubscriptionSchema.index({ 'customerDetails.email': 1, status: 1 });
 export const Subscription: Model<ISubscription> =
   mongoose.models.Subscription ||
   mongoose.model<ISubscription>('Subscription', SubscriptionSchema);
+

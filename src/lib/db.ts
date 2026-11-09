@@ -94,3 +94,4 @@ export function getDatabaseConnectionState(): {
     label: labels[state] || 'disconnected',
   };
 }
+

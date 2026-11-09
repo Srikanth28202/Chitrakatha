@@ -80,3 +80,4 @@ const SettingSchema = new Schema<ISetting>(
 
 export const Setting: Model<ISetting> =
   mongoose.models.Setting || mongoose.model<ISetting>('Setting', SettingSchema);
+
