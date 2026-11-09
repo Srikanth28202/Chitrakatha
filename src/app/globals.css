@@ -1,0 +1,92 @@
+@import url('https://fonts.googleapis.com/css2?family=Anek+Kannada:wght@300;400;500;600;700&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&family=Plus+Jakarta+Sans:wght@300;400;500;600&family=Rozha+One&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Warm Paper & Canvas Palette */
+  --color-bg-canvas: #FDFBF7;
+  --color-bg-paper: #FAF6F0;
+  --color-bg-parchment: #F4EFEA;
+  --color-bg-card: #FFFFFF;
+
+  /* Typography / Espresso Ink */
+  --color-text-main: #231B15;
+  --color-text-muted: #635449;
+  --color-text-soft: #8C7A6E;
+  --color-text-faint: #B8ABA0;
+
+  /* Accent Colors */
+  --color-terracotta: #C86446;
+  --color-terracotta-warm: #DF795C;
+  --color-terracotta-dark: #9D4A32;
+
+  --color-sage: #5E7160;
+  --color-sage-light: #E8ECE8;
+  --color-sage-dark: #435245;
+
+  --color-rose: #B87D7B;
+  --color-rose-light: #F3E8E7;
+  --color-rose-dark: #935A58;
+
+  /* Borders & Dividers */
+  --color-border: #E6DDD4;
+  --color-border-subtle: #EFE8E1;
+
+  /* Fonts */
+  --font-serif: 'Cormorant Garamond', 'Rozha One', 'Georgia', serif;
+  --font-kannada: 'Anek Kannada', 'Noto Serif Kannada', 'Tunga', serif;
+  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  body {
+    background-color: var(--color-bg-canvas);
+    color: var(--color-text-main);
+    font-family: var(--font-sans);
+    letter-spacing: -0.01em;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    min-height: 100vh;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-serif);
+    color: var(--color-text-main);
+    letter-spacing: -0.02em;
+  }
+
+  ::selection {
+    background-color: #F5E3DC;
+    color: #9D4A32;
+  }
+}
+
+/* Custom Editorial Utilities */
+@layer utilities {
+  .font-kannada {
+    font-family: var(--font-kannada);
+    letter-spacing: 0;
+  }
+
+  .font-serif-editorial {
+    font-family: var(--font-serif);
+  }
+
+  .editorial-rule {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, #E6DDD4 20%, #E6DDD4 80%, transparent);
+  }
+
+  .subtle-paper-grain {
+    background-color: var(--color-bg-canvas);
+    background-image: radial-gradient(rgba(35, 27, 21, 0.04) 1px, transparent 0);
+    background-size: 24px 24px;
+  }
+}
+
