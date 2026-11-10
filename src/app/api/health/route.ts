@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server';
-import { connectToDatabase, getDatabaseConnectionState } from '@/lib/db';
+import {
+  connectToDatabase,
+  getDatabaseConnectionState,
+  getDatabaseName,
+} from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,6 +32,7 @@ export async function GET() {
   }
 
   const isHealthy = dbStatus === 'connected';
+  const dbName = getDatabaseName();
   const mongoConfigured = Boolean(process.env.MONGODB_URI);
   const sessionSecret = process.env.SESSION_SECRET;
 
@@ -47,6 +52,7 @@ export async function GET() {
       database: {
         status: dbStatus,
         connected: isHealthy,
+        ...(dbName && { name: dbName }),
         ...(dbError && { message: sanitizeErrorMessage(dbError) }),
       },
     },

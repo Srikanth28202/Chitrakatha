@@ -100,6 +100,17 @@ export async function connectToDatabase(): Promise<typeof mongoose> {
 }
 
 /**
+ * Name of the database the live connection resolved to.
+ *
+ * Useful for deployment diagnostics: a URI without an explicit database path
+ * silently connects to `test`, which looks like "credentials are wrong" while
+ * the real problem is that the wrong database is being read.
+ */
+export function getDatabaseName(): string | null {
+  return mongoose.connection.db?.databaseName ?? null;
+}
+
+/**
  * Helper to inspect the current MongoDB connection state.
  * 0 = disconnected, 1 = connected, 2 = connecting, 3 = disconnecting
  */
