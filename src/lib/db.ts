@@ -7,7 +7,33 @@ if (typeof window !== 'undefined') {
   );
 }
 
-const MONGODB_URI = process.env.MONGODB_URI;
+/**
+ * Reads MONGODB_URI defensively.
+ *
+ * Dashboard env editors (Vercel, Atlas, CI) frequently end up with a value that
+ * carries a trailing newline or was pasted complete with surrounding quotes.
+ * Both produce confusing driver errors such as `Invalid scheme` or
+ * `getaddrinfo ENOTFOUND`, so normalise the value once at module load.
+ */
+function readMongoUri(): string | undefined {
+  const raw = process.env.MONGODB_URI;
+  if (!raw) {
+    return undefined;
+  }
+
+  let uri = raw.trim();
+
+  if (
+    (uri.startsWith('"') && uri.endsWith('"')) ||
+    (uri.startsWith("'") && uri.endsWith("'"))
+  ) {
+    uri = uri.slice(1, -1).trim();
+  }
+
+  return uri.length > 0 ? uri : undefined;
+}
+
+const MONGODB_URI = readMongoUri();
 
 interface MongooseCache {
   conn: typeof mongoose | null;
