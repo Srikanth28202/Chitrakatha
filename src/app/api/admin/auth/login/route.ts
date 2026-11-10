@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { apiError, apiSuccess } from '@/lib/api-response';
 import { verifyAdminCredentials } from '@/lib/auth/guards';
 import {
@@ -99,17 +99,41 @@ export async function POST(request: NextRequest) {
     response.headers.set('Cache-Control', 'no-store');
     return response;
   } catch (error) {
-    console.error(
-      'Admin login failed:',
-      error instanceof Error ? error.message : 'Unknown error'
-    );
-    const response = apiError(
-      'Unable to sign in right now',
-      500,
-      undefined,
-      'INTERNAL_SERVER_ERROR'
-    );
-    response.headers.set('Cache-Control', 'no-store');
-    return response;
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Admin login failed:', message);
+
+    // Surface deployment configuration problems as distinguishable codes so an
+    // operator can tell "wrong password" (401) from "missing env var" (503)
+    // without reading server logs.
+    let failure: NextResponse;
+    if (message.includes('Authentication is not configured')) {
+      failure = apiError(
+        'Admin authentication is not configured on this deployment.',
+        503,
+        undefined,
+        'AUTH_NOT_CONFIGURED'
+      );
+    } else if (
+      /mongodb|mongoose|server selection|connection|ECONNREFUSED|ETIMEDOUT|authentication failed/i.test(
+        message
+      )
+    ) {
+      failure = apiError(
+        'The database is currently unreachable. Please try again shortly.',
+        503,
+        undefined,
+        'DATABASE_UNAVAILABLE'
+      );
+    } else {
+      failure = apiError(
+        'Unable to sign in right now',
+        500,
+        undefined,
+        'INTERNAL_SERVER_ERROR'
+      );
+    }
+
+    failure.headers.set('Cache-Control', 'no-store');
+    return failure;
   }
 }
