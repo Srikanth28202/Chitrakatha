@@ -28,6 +28,7 @@ In an era of vanishing digital notifications, Chitrakatha creates physical keeps
 * **Icons**: Lucide React
 * **Database**: MongoDB Atlas with Mongoose
 * **Validation**: Zod
+* **Payments**: Razorpay official Node SDK (one-time, test-mode ready)
 * **Internationalization**: Custom client-side bilingual translation engine with persistence (Kannada & English)
 
 ---
@@ -56,11 +57,10 @@ In an era of vanishing digital notifications, Chitrakatha creates physical keeps
     │   └── home/                     # Hero, BrandStory, MonthlyCollections, WhatsInside, HowItWorks, SubscriptionPlans, Testimonials, FAQ
     ├── config/                       # Site metadata, routes, navigation & constants
     ├── data/                         # Collections, keepsakes, plans, FAQs, testimonials
-    ├── hooks/                        # useLanguage, useMediaQuery
     ├── i18n/                         # Dictionaries (en, kn) & LanguageProvider context
-    ├── lib/                          # db.ts (Mongoose connection cache), api-response, validations, mapper
-    ├── models/                       # Mongoose schemas: User, Edition, Order, Subscription, Payment, Coupon, Shipment, Setting
-    ├── services/                     # EditionService & SubscriptionService
+    ├── lib/                          # db.ts (Mongoose connection cache), rate-limit, api-response, validations, clients
+    ├── models/                       # Mongoose schemas: User, Edition, Order, Subscription, Payment, PaymentWebhookEvent, Coupon, Shipment, Setting
+    ├── services/                     # Edition, checkout, payment, admin (orders/coupons/shipments/subscriptions/settings)
     └── types/                        # Core TypeScript contracts and schemas
 ```
 
@@ -82,7 +82,19 @@ cp .env.example .env.local
 ```env
 MONGODB_URI=mongodb+srv://<username>:<password>@cluster0.mongodb.net/chitrakatha?retryWrites=true&w=majority
 NEXT_PUBLIC_APP_URL=http://localhost:3000
+SESSION_SECRET=<at-least-32-random-characters>
 ADMIN_EMAIL=admin@chitrakatha.art
+ADMIN_NAME=Chitrakatha Administrator
+ADMIN_PASSWORD=<strong-password-for-init:admin>
+RAZORPAY_KEY_ID=
+RAZORPAY_KEY_SECRET=
+RAZORPAY_WEBHOOK_SECRET=
+```
+
+Create the first admin user after configuring the database:
+
+```bash
+npm run init:admin
 ```
 
 ### 3. Installation
@@ -102,6 +114,15 @@ npm run build
 npm start
 ```
 
+### 6. Razorpay Test-Mode Payments
+1. Create Razorpay **test mode** API keys in the dashboard.
+2. Add `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, and `RAZORPAY_WEBHOOK_SECRET` to `.env.local`.
+3. Add a webhook with URL `{NEXT_PUBLIC_APP_URL}/api/payments/razorpay/webhook`.
+4. Subscribe the webhook to `payment.captured`, `payment.authorized`, `payment.failed`, and `order.paid`.
+5. For local webhook testing, expose `http://localhost:3000` using a tunnel such as ngrok and use the tunnel URL in `NEXT_PUBLIC_APP_URL`.
+
+Payment amounts are calculated from the server-saved pending order. API secrets are used only on the server; the browser receives only the Razorpay key ID. Payments are recorded only after signature verification and payment fetching, or after a verified webhook. Webhook event IDs are stored to keep processing idempotent.
+
 ---
 
 ## ✦ API Endpoints
@@ -109,8 +130,14 @@ npm start
 | Method | Endpoint | Description |
 |---|---|---|
 | `GET` | `/api/health` | Health monitor reporting server and MongoDB connection status |
-| `GET` | `/api/editions` | Public active and upcoming editions (supports `month`, `year`, `page`, `limit`) |
+| `GET` | `/api/editions` | Public active and upcoming editions (supports `status`, `month`, `year`, `page`, `limit`) |
 | `GET` | `/api/editions/[slug]` | Detailed public metadata for a single monthly collection |
+| `POST` | `/api/checkout/quote` | Server-authoritative cart quote with pricing, coupon, shipping, and serviceability |
+| `POST` | `/api/orders` | Creates a pending guest order and returns its payment access token |
+| `POST` | `/api/payments/razorpay/order` | Creates or reuses a Razorpay order for a pending order |
+| `POST` | `/api/payments/razorpay/verify` | Verifies a Razorpay payment signature and fetched payment status |
+| `POST` | `/api/payments/razorpay/webhook` | Verifies and processes idempotent Razorpay webhook events |
+| `POST` | `/api/payments/status` | Returns public order/payment status (token sent in the body, never in the URL) |
 
 ---
 
@@ -122,6 +149,65 @@ npm start
 * **Muted Sage Green**: `#5E7160`
 * **Dusty Rose**: `#B87D7B`
 * **Espresso Ink Typography**: `#231B15`
+
+---
+
+## ✦ Deploying to Vercel
+
+The app is a standard Next.js 15 (App Router) project and deploys to Vercel without extra configuration.
+
+### 1. Import the repository
+1. Push this repository to GitHub.
+2. In Vercel, **Add New → Project** and import the repo.
+3. Framework preset: **Next.js** (auto-detected). Build command: `npm run build`. Output: default.
+
+### 2. Set environment variables
+Add these in **Project → Settings → Environment Variables** (Production *and* Preview):
+
+| Variable | Value |
+|---|---|
+| `MONGODB_URI` | Your MongoDB Atlas connection string |
+| `NEXT_PUBLIC_APP_URL` | Your deployed URL, e.g. `https://chitrakatha.vercel.app` |
+| `SESSION_SECRET` | 32+ random characters (see `.env.example` for the generator one-liner) |
+| `RAZORPAY_KEY_ID` | Razorpay key ID (paste when you enable payments) |
+| `RAZORPAY_KEY_SECRET` | Razorpay key secret |
+| `RAZORPAY_WEBHOOK_SECRET` | Razorpay webhook signing secret |
+| `ADMIN_EMAIL`, `ADMIN_NAME`, `ADMIN_PASSWORD` | Only needed for the one-time admin bootstrap |
+
+> `NEXT_PUBLIC_APP_URL` is inlined at build time. If you later attach a custom domain, update this variable **and redeploy**.
+
+### 3. Allow Vercel to reach MongoDB Atlas
+In Atlas → **Network Access**, allow `0.0.0.0/0` (Vercel serverless functions use dynamic IPs). Restrict by database user permissions where possible.
+
+### 4. Create the admin user
+Run the bootstrap script locally against the production database (it reads `.env.local`):
+
+```bash
+npm run init:admin
+```
+
+Then sign in at `https://<your-domain>/admin/login`.
+
+### 5. Configure the Razorpay webhook (when payments go live)
+Add a webhook in the Razorpay dashboard pointing to:
+
+```
+https://<your-domain>/api/payments/razorpay/webhook
+```
+
+Subscribe to `payment.captured`, `payment.authorized`, `payment.failed`, and `order.paid`.
+
+### Pre-launch checklist
+- [ ] `MONGODB_URI` and `SESSION_SECRET` set in Vercel
+- [ ] `NEXT_PUBLIC_APP_URL` matches the live domain
+- [ ] Atlas network access allows Vercel
+- [ ] First admin created and login works
+- [ ] Edition artwork uploaded under `public/images/editions/` (or absolute URLs in the admin)
+- [ ] Razorpay keys + webhook configured (payments return `503 PAYMENT_NOT_CONFIGURED` until then)
+
+**Operational notes**
+- Rate limiting is in-process per instance. For multi-instance scale, move it to a shared store such as Redis.
+- The payment access token is kept in `sessionStorage` and is never placed in a URL. A customer who closes the tab cannot resume payment until an order-confirmation email / payment-link mailer is added.
 
 ---
 

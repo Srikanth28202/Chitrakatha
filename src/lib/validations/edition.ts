@@ -1,10 +1,14 @@
 import { z } from 'zod';
 
+export const PUBLIC_EDITION_STATUS_FILTERS = [
+  'active',
+  'upcoming',
+  'sold_out',
+  'all',
+] as const;
+
 export const editionQuerySchema = z.object({
-  status: z
-    .enum(['active', 'upcoming', 'sold_out', 'archived', 'all'])
-    .optional()
-    .default('active'),
+  status: z.enum(PUBLIC_EDITION_STATUS_FILTERS).optional(),
   month: z.string().trim().optional(),
   year: z.coerce.number().int().min(2024).max(2050).optional(),
   page: z.coerce.number().int().min(1).default(1),

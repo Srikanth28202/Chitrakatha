@@ -1,14 +1,78 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useLanguage } from '@/i18n/context';
 import { siteConfig } from '@/config/site';
 import { Container } from '@/components/ui/container';
 import { Feather, Instagram, Mail, MapPin, Heart } from 'lucide-react';
 
+interface FooterEdition {
+  slug: string;
+  titleEn: string;
+  titleKn: string;
+  month: string;
+  year: number;
+}
+
+function toFooterEditions(data: unknown): FooterEdition[] {
+  if (!Array.isArray(data)) return [];
+
+  const editions: FooterEdition[] = [];
+
+  for (const candidate of data) {
+    if (!candidate || typeof candidate !== 'object') continue;
+    const record = candidate as Record<string, unknown>;
+    const slug = typeof record.slug === 'string' ? record.slug : '';
+    const titleEn = typeof record.titleEn === 'string' ? record.titleEn : '';
+    const titleKn = typeof record.titleKn === 'string' ? record.titleKn : '';
+    const month = typeof record.month === 'string' ? record.month : '';
+    const year = typeof record.year === 'number' ? record.year : 0;
+
+    if (slug && (titleEn || titleKn)) {
+      editions.push({ slug, titleEn, titleKn, month, year });
+    }
+  }
+
+  return editions.slice(0, 3);
+}
+
 export function Footer() {
   const { t, isKannada } = useLanguage();
+  const [currentYear, setCurrentYear] = useState<number>(() => new Date().getFullYear());
+  const [recentEditions, setRecentEditions] = useState<FooterEdition[]>([]);
+
+  useEffect(() => {
+    // Refresh after mount so a long-lived session rolls over to a new year.
+    setCurrentYear(new Date().getFullYear());
+  }, []);
+
+  useEffect(() => {
+    // Surface the newest published editions in place of hardcoded names.
+    // Non-critical: the footer renders a fallback link when unavailable.
+    let active = true;
+
+    async function loadRecentEditions() {
+      try {
+        const response = await fetch('/api/editions?limit=3', { cache: 'no-store' });
+        const payload = (await response.json().catch(() => null)) as
+          | { success?: boolean; data?: unknown }
+          | null;
+
+        if (!active) return;
+        if (!response.ok || payload?.success !== true) return;
+
+        setRecentEditions(toFooterEditions(payload.data));
+      } catch {
+        // Footer links are decorative; failures keep the fallback link.
+      }
+    }
+
+    void loadRecentEditions();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return (
     <footer className="w-full border-t border-border bg-[#F8F3EC] pt-16 pb-12 transition-colors">
@@ -78,30 +142,29 @@ export function Footer() {
                 {t.footer.collectionsTitle}
               </h3>
               <ul className="space-y-1.5 text-sm font-serif">
-                <li>
-                  <Link
-                    href="#collections"
-                    className="text-espresso-muted hover:text-terracotta-700 transition-colors"
-                  >
-                    {isKannada ? 'ನವೆಂಬರ್: ಮೌನ ಸಹ್ಯಾದ್ರಿ' : 'November: The Whispering Sahyadri'}
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    href="#collections"
-                    className="text-espresso-muted hover:text-terracotta-700 transition-colors"
-                  >
-                    {isKannada ? 'ಡಿಸೆಂಬರ್: ಕಾವೇರಿಯ ನಕ್ಷತ್ರಗಳು' : 'December: Constellations of Kaveri'}
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    href="#collections"
-                    className="text-espresso-muted hover:text-terracotta-700 transition-colors"
-                  >
-                    {isKannada ? 'ಅಕ್ಟೋಬರ್: ಹಂಪಿಯ ನೆನಪುಗಳು' : 'October: Echoes of Hampi'}
-                  </Link>
-                </li>
+                {recentEditions.map((edition) => (
+                  <li key={edition.slug}>
+                    <Link
+                      href={`/collections/${edition.slug}`}
+                      className="text-espresso-muted hover:text-terracotta-700 transition-colors"
+                    >
+                      {edition.month ? `${edition.month}: ` : ''}
+                      {isKannada
+                        ? edition.titleKn || edition.titleEn
+                        : edition.titleEn || edition.titleKn}
+                    </Link>
+                  </li>
+                ))}
+                {recentEditions.length === 0 && (
+                  <li>
+                    <Link
+                      href="/#collections"
+                      className="text-espresso-muted hover:text-terracotta-700 transition-colors"
+                    >
+                      {isKannada ? 'ಎಲ್ಲಾ ಸಂಗ್ರಹಗಳನ್ನು ನೋಡಿ' : 'Browse all collections'}
+                    </Link>
+                  </li>
+                )}
               </ul>
             </div>
 
@@ -127,7 +190,7 @@ export function Footer() {
         {/* Bottom Bar */}
         <div className="pt-8 flex flex-col sm:flex-row items-center justify-between text-xs text-espresso-soft gap-4 font-sans">
           <p>
-            &copy; {new Date().getFullYear()} {siteConfig.name} ({siteConfig.nameKannada}).{' '}
+            &copy; {currentYear} {siteConfig.name} ({siteConfig.nameKannada}).{' '}
             {t.footer.rightsReserved}
           </p>
           <p className="flex items-center gap-1.5">

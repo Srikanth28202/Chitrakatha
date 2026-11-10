@@ -91,7 +91,14 @@ export function SubscriptionPlans() {
                         </span>
                       )}
                       <span className="text-xs text-espresso-soft font-sans">
-                        / {plan.type === 'recurring' ? t.subscription.perMonth : (isKannada ? 'ಪೆಟ್ಟಿಗೆ' : 'parcel')}
+                        /{' '}
+                        {plan.type === 'recurring'
+                          ? plan.billingPeriodMonths === 3
+                            ? t.subscription.perQuarter
+                            : t.subscription.perMonth
+                          : isKannada
+                            ? 'ಪೆಟ್ಟಿಗೆ'
+                            : 'parcel'}
                       </span>
                     </div>
 
@@ -132,7 +139,9 @@ export function SubscriptionPlans() {
                     rightIcon={<ArrowRight className="w-4 h-4" />}
                   >
                     {plan.type === 'recurring'
-                      ? t.subscription.reserveButton
+                      ? plan.billingPeriodMonths === 3
+                        ? t.subscription.reserveQuarterlyButton
+                        : t.subscription.reserveButton
                       : t.subscription.inquiryButton}
                   </Button>
                   <p className="text-[11px] text-center text-espresso-soft">
@@ -262,13 +271,13 @@ export function SubscriptionPlans() {
 
                   <p className="text-[11px] text-espresso-soft leading-normal">
                     {isKannada
-                      ? 'ಇದು ಪೂರ್ವನೋಂದಣಿ ಮಾತ್ರ. ಮುಂಬರುವ ಸಂಚಿಕೆ ಸಿದ್ಧವಾದಾಗ ನಿಮ್ಮ ವಿಳಾಸ ಮತ್ತು ಸುರಕ್ಷಿತ ಪಾವತಿ ಲಿಂಕ್ ಕಳುಹಿಸಲಾಗುವುದು.'
-                      : 'This reserves your allocation for the upcoming edition. You will receive an invitation link with delivery address confirmation upon release.'}
+                      ? 'ಆಸಕ್ತಿ ನೋಂದಣಿ ಮಾತ್ರ — ಈಗ ಯಾವುದೇ ಪಾವತಿ ಸ್ವೀಕರಿಸಲಾಗುವುದಿಲ್ಲ. ಮುಂಬರುವ ಸಂಚಿಕೆ ಬಿಡುಗಡೆಯಾದಾಗ ಆವೃತ್ತಿ ಪುಟದಲ್ಲಿ ಸುರಕ್ಷಿತ ಖರೀದಿ ತೆರೆಯುತ್ತದೆ.'
+                      : 'Interest only — no payment is taken now and no confirmation email is sent. Secure checkout for the upcoming edition opens on the edition page once released.'}
                   </p>
 
                   <div className="pt-2">
                     <Button type="submit" variant="primary" size="md" className="w-full">
-                      {isKannada ? 'ನನ್ನ ಪೆಟ್ಟಿಗೆ ಕಾಯ್ದಿರಿಸಿ' : 'Confirm Allocation'}
+                      {isKannada ? 'ನನ್ನ ಆಸಕ್ತಿ ನೋಂದಾಯಿಸಿ' : 'Note My Interest'}
                     </Button>
                   </div>
                 </form>
@@ -279,12 +288,12 @@ export function SubscriptionPlans() {
                   </div>
                   <div className="space-y-1">
                     <h4 className="font-serif text-2xl font-semibold text-espresso-dark">
-                      {isKannada ? 'ಧನ್ಯವಾದಗಳು!' : 'Allocation Reserved!'}
+                      {isKannada ? 'ಧನ್ಯವಾದಗಳು!' : 'Thank You!'}
                     </h4>
                     <p className="text-sm text-espresso-muted">
                       {isKannada
-                        ? `ನಿಮ್ಮ ಕಾಯ್ದಿರಿಸುವಿಕೆ ದೃಢಪಟ್ಟಿದೆ, ${collectorName}. ವಿವರಗಳನ್ನು ${collectorEmail} ಗೆ ಕಳುಹಿಸಲಾಗಿದೆ.`
-                        : `Thank you, ${collectorName}. Your reservation for this month’s edition is noted, and confirmation has been sent to ${collectorEmail}.`}
+                        ? `ಧನ್ಯವಾದಗಳು, ${collectorName}. ಈ ಭೇಟಿಗೆ ನಿಮ್ಮ ಆಯ್ಕೆ ದಾಖಲಾಗಿದೆ. ಮುಂದಿನ ಪೆಟ್ಟಿಗೆ ಬಿಡುಗಡೆಯಾದಾಗ ಆವೃತ್ತಿ ಪುಟದಿಂದ ಸುರಕ್ಷಿತ ಖರೀದಿ ಪೂರ್ಣಗೊಳಿಸಿ.`
+                        : `Thank you, ${collectorName}. Your choice is saved for this visit — no confirmation email was sent. Complete your secure checkout from the edition page once the next box opens.`}
                     </p>
                   </div>
                   <Button variant="outline" size="sm" onClick={closeModal} className="mt-4">

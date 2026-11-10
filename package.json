@@ -2,6 +2,9 @@
   "name": "chitrakatha",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "node scripts/next-runner.mjs dev",
     "build": "node scripts/next-runner.mjs build",
@@ -15,6 +18,7 @@
     "lucide-react": "^0.475.0",
     "mongoose": "^8.10.1",
     "next": "^15.1.7",
+    "razorpay": "^2.9.8",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "tailwind-merge": "^2.6.0",

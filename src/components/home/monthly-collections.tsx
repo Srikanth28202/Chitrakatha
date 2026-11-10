@@ -1,36 +1,199 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useLanguage } from '@/i18n/context';
-import { monthlyCollectionsData, CollectionItem } from '@/data/collections';
 import { Container } from '@/components/ui/container';
 import { SectionHeading } from '@/components/ui/section-heading';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { EditionImage } from '@/components/collections/edition-image';
+import { getEditionMonthLabel, normalizePublicEdition } from '@/lib/public-edition';
 import { formatINR } from '@/lib/utils';
-import { Calendar, Languages, Package, ArrowRight, Check, X } from 'lucide-react';
+import type { PublicEdition } from '@/types/edition';
+import {
+  AlertCircle,
+  ArrowRight,
+  BookOpen,
+  Calendar,
+  Languages,
+  Package,
+  Palette,
+  RefreshCw,
+} from 'lucide-react';
+
+type CollectionFilter = 'all' | 'available' | 'upcoming';
+
+interface EditionsApiResponse {
+  success?: boolean;
+  data?: unknown;
+  meta?: {
+    total?: number;
+    page?: number;
+    limit?: number;
+    totalPages?: number;
+    [key: string]: unknown;
+  };
+  error?: { message?: string };
+}
+
+const EDITIONS_PAGE_SIZE = 12;
+
+function FilterPill({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`px-3 py-1.5 rounded-[3px] font-medium transition-colors ${
+        active
+          ? 'bg-canvas-card text-espresso-dark shadow-subtle font-semibold'
+          : 'text-espresso-muted hover:text-espresso-dark'
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function CollectionSkeleton() {
+  return (
+    <Card variant="bordered" className="flex flex-col">
+      <div className="aspect-[16/10] w-full animate-pulse bg-canvas-paper" />
+      <div className="space-y-4 p-7">
+        <div className="h-3 w-1/3 animate-pulse rounded-paper bg-canvas-paper" />
+        <div className="h-7 w-3/4 animate-pulse rounded-paper bg-canvas-paper" />
+        <div className="h-4 w-1/2 animate-pulse rounded-paper bg-canvas-paper" />
+        <div className="space-y-2 pt-2">
+          <div className="h-3 w-full animate-pulse rounded-paper bg-canvas-paper" />
+          <div className="h-3 w-11/12 animate-pulse rounded-paper bg-canvas-paper" />
+        </div>
+        <div className="h-9 w-full animate-pulse rounded-paper bg-canvas-paper" />
+      </div>
+    </Card>
+  );
+}
 
 export function MonthlyCollections() {
   const { t, isKannada } = useLanguage();
-  const [activeFilter, setActiveFilter] = useState<'all' | 'available' | 'archived'>('all');
-  const [selectedCollection, setSelectedCollection] = useState<CollectionItem | null>(null);
+  const [activeFilter, setActiveFilter] = useState<CollectionFilter>('all');
+  const [editions, setEditions] = useState<PublicEdition[]>([]);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [reloadToken, setReloadToken] = useState(0);
 
-  const filteredCollections = monthlyCollectionsData.filter((col) => {
-    if (activeFilter === 'available') return col.status === 'available' || col.status === 'reserve';
-    if (activeFilter === 'archived') return col.status === 'archived';
-    return true;
-  });
+  useEffect(() => {
+    const controller = new AbortController();
+    let isActive = true;
 
-  const getStatusBadge = (status: CollectionItem['status']) => {
-    switch (status) {
-      case 'available':
-        return <Badge variant="terracotta">{t.collections.statusAvailable}</Badge>;
-      case 'reserve':
-        return <Badge variant="sage">{t.collections.statusReserve}</Badge>;
-      case 'archived':
-        return <Badge variant="paper">{t.collections.statusArchived}</Badge>;
+    async function loadEditions() {
+      const isInitialLoad = page === 1;
+      if (isInitialLoad) {
+        setIsLoading(true);
+      } else {
+        setIsLoadingMore(true);
+      }
+      setError(null);
+
+      // Filtering happens server-side so pagination stays correct for each
+      // tab instead of only paginating the unfiltered list.
+      const statusParam =
+        activeFilter === 'available'
+          ? 'active'
+          : activeFilter === 'upcoming'
+            ? 'upcoming'
+            : '';
+      const query = `limit=${EDITIONS_PAGE_SIZE}&page=${page}` +
+        (statusParam ? `&status=${statusParam}` : '');
+
+      try {
+        const response = await fetch(`/api/editions?${query}`, {
+          signal: controller.signal,
+          cache: 'no-store',
+        });
+        const payload = (await response.json().catch(() => null)) as EditionsApiResponse | null;
+
+        if (!response.ok || payload?.success !== true || !Array.isArray(payload.data)) {
+          throw new Error(payload?.error?.message || 'Unable to load editions');
+        }
+
+        if (!isActive) return;
+
+        const normalized = payload.data
+          .map(normalizePublicEdition)
+          .filter((edition): edition is PublicEdition => edition !== null);
+
+        const totalPages = Math.max(1, payload.meta?.totalPages ?? 1);
+        setEditions((previous) => (page === 1 ? normalized : [...previous, ...normalized]));
+        setHasMore(page < totalPages);
+      } catch (loadError) {
+        if (!isActive) return;
+        if (loadError instanceof DOMException && loadError.name === 'AbortError') return;
+
+        setEditions([]);
+        setHasMore(false);
+        setError(loadError instanceof Error ? loadError.message : 'Unable to load editions');
+      } finally {
+        if (isActive) {
+          setIsLoading(false);
+          setIsLoadingMore(false);
+        }
+      }
     }
+
+    void loadEditions();
+
+    return () => {
+      isActive = false;
+      controller.abort();
+    };
+  }, [activeFilter, page, reloadToken]);
+
+  function handleFilterChange(filter: CollectionFilter) {
+    setActiveFilter(filter);
+    setPage(1);
+  }
+
+  const filteredCollections = editions;
+
+  const getStatusBadge = (status: PublicEdition['status']) => {
+    switch (status) {
+      case 'active':
+        return <Badge variant="terracotta">{t.collections.statusAvailable}</Badge>;
+      case 'upcoming':
+        return <Badge variant="sage">{t.collections.statusReserve}</Badge>;
+      default:
+        return <Badge variant="paper">{t.collections.statusSoldOut}</Badge>;
+    }
+  };
+
+  const getLanguageLabel = (edition: PublicEdition) => {
+    if (edition.availableLanguages.length === 0) {
+      return t.collections.languageBadge;
+    }
+
+    if (edition.availableLanguages.includes('bilingual')) {
+      return t.collections.languageBadge;
+    }
+
+    return edition.availableLanguages
+      .map((language) => {
+        if (language === 'kannada') return isKannada ? 'ಕನ್ನಡ' : 'Kannada';
+        return isKannada ? 'ಇಂಗ್ಲಿಷ್' : 'English';
+      })
+      .join(' · ');
   };
 
   return (
@@ -50,216 +213,218 @@ export function MonthlyCollections() {
           {/* Filter Pills */}
           <div
             className="inline-flex items-center p-1 rounded-paper border border-border bg-canvas-paper/80 self-start md:self-auto text-xs"
-            role="tablist"
-            aria-label="Collection filter"
+            role="group"
+            aria-label={isKannada ? 'ಸಂಗ್ರಹಗಳ ಶೋಧನೆ' : 'Collection filter'}
           >
-            <button
-              type="button"
-              onClick={() => setActiveFilter('all')}
-              className={`px-3 py-1.5 rounded-[3px] font-medium transition-colors ${
-                activeFilter === 'all'
-                  ? 'bg-canvas-card text-espresso-dark shadow-subtle font-semibold'
-                  : 'text-espresso-muted hover:text-espresso-dark'
-              }`}
-            >
+            <FilterPill active={activeFilter === 'all'} onClick={() => handleFilterChange('all')}>
               {t.collections.filterAll}
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveFilter('available')}
-              className={`px-3 py-1.5 rounded-[3px] font-medium transition-colors ${
-                activeFilter === 'available'
-                  ? 'bg-canvas-card text-espresso-dark shadow-subtle font-semibold'
-                  : 'text-espresso-muted hover:text-espresso-dark'
-              }`}
+            </FilterPill>
+            <FilterPill
+              active={activeFilter === 'available'}
+              onClick={() => handleFilterChange('available')}
             >
               {t.collections.filterAvailable}
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveFilter('archived')}
-              className={`px-3 py-1.5 rounded-[3px] font-medium transition-colors ${
-                activeFilter === 'archived'
-                  ? 'bg-canvas-card text-espresso-dark shadow-subtle font-semibold'
-                  : 'text-espresso-muted hover:text-espresso-dark'
-              }`}
+            </FilterPill>
+            <FilterPill
+              active={activeFilter === 'upcoming'}
+              onClick={() => handleFilterChange('upcoming')}
             >
-              {t.collections.filterArchive}
-            </button>
+              {t.collections.filterUpcoming}
+            </FilterPill>
           </div>
         </div>
 
-        {/* Collections Listing Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-8">
-          {filteredCollections.map((collection) => (
-            <Card
-              key={collection.id}
-              variant="bordered"
-              className="group hover:border-terracotta-500/50 hover:shadow-card transition-all flex flex-col justify-between"
-            >
-              <div className="p-7 space-y-5">
-                {/* Meta Bar: Month, Year, Season & Status */}
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border-subtle pb-4">
-                  <div className="flex items-center gap-2 text-xs text-espresso-soft font-sans">
-                    <Calendar className="w-3.5 h-3.5 text-terracotta-600" />
-                    <span>
-                      {isKannada ? collection.monthKn : collection.month} {collection.year}
-                    </span>
-                    <span className="text-border-strong">·</span>
-                    <span className="font-serif italic">
-                      {isKannada ? collection.seasonKn : collection.seasonEn}
-                    </span>
-                  </div>
-                  {getStatusBadge(collection.status)}
-                </div>
-
-                {/* Collection Name & Description */}
-                <div className="space-y-2">
-                  <h3 className="font-serif text-2xl sm:text-3xl font-medium text-espresso-dark group-hover:text-terracotta-700 transition-colors">
-                    {isKannada ? collection.nameKn : collection.nameEn}
-                  </h3>
-                  <p className="font-kannada text-sm text-espresso-soft">
-                    {isKannada ? collection.nameEn : collection.nameKn}
-                  </p>
-                  <p className="text-sm text-espresso-muted leading-relaxed font-sans pt-1">
-                    {isKannada ? collection.descriptionKn : collection.descriptionEn}
-                  </p>
-                </div>
-
-                {/* Metadata Tags */}
-                <div className="flex flex-wrap items-center gap-3 pt-2 text-xs text-espresso-muted">
-                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-paper bg-canvas-paper border border-border-subtle">
-                    <Languages className="w-3.5 h-3.5 text-sage-600" />
-                    <span>{t.collections.languageBadge}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-paper bg-canvas-paper border border-border-subtle">
-                    <Package className="w-3.5 h-3.5 text-terracotta-600" />
-                    <span>{collection.itemsCount} {isKannada ? 'ಸಾಮಗ್ರಿಗಳು' : 'Items Included'}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Bottom Card Action & Price */}
-              <div className="px-7 py-4 bg-canvas-paper/60 border-t border-border flex items-center justify-between">
-                <div>
-                  <span className="text-[11px] text-espresso-soft block">
-                    {t.collections.priceLabel}
-                  </span>
-                  <div className="flex items-baseline gap-1">
-                    <span className="font-serif text-2xl font-bold text-espresso-dark">
-                      {formatINR(collection.priceInr)}
-                    </span>
-                  </div>
-                </div>
-
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setSelectedCollection(collection)}
-                  rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
-                >
-                  {t.collections.viewCollection}
-                </Button>
-              </div>
-            </Card>
-          ))}
-        </div>
-
-        {/* Modal: View Collection Details (No fake payment, clean inspection dialog) */}
-        {selectedCollection && (
+        {/* Loading state */}
+        {isLoading ? (
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-espresso-dark/60 backdrop-blur-sm animate-in fade-in duration-200"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="modal-title"
+            className="grid grid-cols-1 md:grid-cols-2 gap-8"
+            aria-busy="true"
+            aria-live="polite"
           >
-            <div className="bg-canvas-card border border-border rounded-warm max-w-lg w-full p-6 sm:p-8 shadow-elevated space-y-6 max-h-[90vh] overflow-y-auto">
-              <div className="flex items-start justify-between border-b border-border pb-4">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    {getStatusBadge(selectedCollection.status)}
-                    <span className="text-xs text-espresso-soft font-serif">
-                      {selectedCollection.seasonEn}
-                    </span>
-                  </div>
-                  <h3 id="modal-title" className="font-serif text-2xl text-espresso-dark font-medium">
-                    {isKannada ? selectedCollection.nameKn : selectedCollection.nameEn}
-                  </h3>
-                  <p className="font-kannada text-sm text-espresso-muted">
-                    {isKannada ? selectedCollection.nameEn : selectedCollection.nameKn}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setSelectedCollection(null)}
-                  className="p-1 rounded-paper text-espresso-muted hover:text-espresso-main hover:bg-canvas-paper border border-border"
-                  aria-label="Close dialog"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div className="space-y-4 text-sm text-espresso-muted font-sans">
-                <p className="leading-relaxed">
-                  {isKannada ? selectedCollection.descriptionKn : selectedCollection.descriptionEn}
-                </p>
-
-                <div className="p-4 rounded-paper bg-canvas-paper/70 border border-border space-y-2">
-                  <h4 className="text-xs uppercase font-semibold tracking-wider text-espresso-soft">
-                    {isKannada ? 'ಪೆಟ್ಟಿಗೆಯ ಸಾಮಗ್ರಿಗಳು:' : 'Included In This Parcel:'}
-                  </h4>
-                  <ul className="space-y-1.5 text-xs">
-                    <li className="flex items-center gap-2">
-                      <Check className="w-3.5 h-3.5 text-sage-600" />
-                      <span>Deckle-edge Illustrated Story Letter (Kannada + English)</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <Check className="w-3.5 h-3.5 text-sage-600" />
-                      <span>2 Heavyweight 300gsm Archival Art Postcards</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <Check className="w-3.5 h-3.5 text-sage-600" />
-                      <span>Artisanal Matte Sticker Sheet</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <Check className="w-3.5 h-3.5 text-sage-600" />
-                      <span>Letterpress Handcrafted Poetry Bookmark</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <Check className="w-3.5 h-3.5 text-sage-600" />
-                      <span>Pocket 24-piece Art Scene Puzzle</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <Check className="w-3.5 h-3.5 text-sage-600" />
-                      <span>2 Heritage Architectural Colouring Sheets</span>
-                    </li>
-                  </ul>
-                </div>
-
-                <div className="pt-2 flex items-center justify-between border-t border-border">
-                  <div>
-                    <span className="text-xs text-espresso-soft block">{t.collections.priceLabel}</span>
-                    <span className="font-serif text-2xl font-bold text-espresso-dark">
-                      {formatINR(selectedCollection.priceInr)}
-                    </span>
-                  </div>
-
-                  <a
-                    href="#subscription"
-                    onClick={() => setSelectedCollection(null)}
-                    className="inline-flex"
-                  >
-                    <Button variant="primary" size="md">
-                      {t.subscription.reserveButton}
-                    </Button>
-                  </a>
-                </div>
-              </div>
+            <CollectionSkeleton />
+            <CollectionSkeleton />
+          </div>
+        ) : error ? (
+          <Card variant="paper" className="p-10 text-center sm:p-12">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-warm border border-border bg-canvas-paper text-terracotta-700">
+              <AlertCircle className="h-5 w-5" aria-hidden="true" />
             </div>
+            <h3 className="mt-4 font-serif text-2xl font-medium text-espresso-dark">
+              {isKannada ? 'ಸಂಪುಟಗಳನ್ನು ಲೋಡ್ ಮಾಡಲು ಸಾಧ್ಯವಾಗಲಿಲ್ಲ' : 'Unable to load collections'}
+            </h3>
+            <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-espresso-muted">
+              {isKannada
+                ? 'ಸಂಪರ್ಕದಲ್ಲಿ ತಾತ್ಕಾಲಿಕ ತೊಂದರೆ ಉಂಟಾಗಿದೆ. ದಯವಿಟ್ಟು ಮತ್ತೊಮ್ಮೆ ಪ್ರಯತ್ನಿಸಿ.'
+                : 'There was a temporary problem reaching the catalogue. Please try again.'}
+            </p>
+            <p className="mx-auto mt-1 max-w-md text-[11px] text-espresso-faint">{error}</p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-5"
+              onClick={() => setReloadToken((value) => value + 1)}
+              leftIcon={<RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />}
+            >
+              {isKannada ? 'ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ' : 'Try again'}
+            </Button>
+          </Card>
+        ) : filteredCollections.length === 0 ? (
+          <Card variant="paper" className="p-10 text-center sm:p-12">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-warm border border-border bg-canvas-paper text-espresso-soft">
+              <BookOpen className="h-5 w-5" aria-hidden="true" />
+            </div>
+            <h3 className="mt-4 font-serif text-2xl font-medium text-espresso-dark">
+              {isKannada ? 'ಯಾವುದೇ ಸಂಪುಟಗಳು ಲಭ್ಯವಿಲ್ಲ' : 'No collections available yet'}
+            </h3>
+            <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-espresso-muted">
+              {isKannada
+                ? 'ಹೊಸ ಸಂಚಿಕೆಗಳು ಶೀಘ್ರದಲ್ಲೇ ಪ್ರಕಟವಾಗಲಿವೆ. ದಯವಿಟ್ಟು ಮತ್ತೆ ಭೇಟಿ ನೀಡಿ.'
+                : 'New editions will be published soon. Please check back shortly.'}
+            </p>
+            {activeFilter !== 'all' && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-5"
+                onClick={() => handleFilterChange('all')}
+              >
+                {t.collections.filterAll}
+              </Button>
+            )}
+          </Card>
+        ) : (
+          /* Collections Listing Grid */
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {filteredCollections.map((collection) => {
+              const title = (isKannada ? collection.titleKn : collection.titleEn) || collection.titleEn;
+              const altTitle = isKannada ? collection.titleEn : collection.titleKn;
+              const description =
+                (isKannada ? collection.descriptionKn : collection.descriptionEn) ||
+                collection.descriptionEn;
+              const theme = (isKannada ? collection.themeKn : collection.themeEn) || collection.themeEn;
+              const season =
+                (isKannada ? collection.seasonKn : collection.seasonEn) || collection.seasonEn;
+              const monthLabel = getEditionMonthLabel(collection.month, isKannada);
+
+              return (
+                <Card
+                  key={collection.id}
+                  variant="bordered"
+                  className="group hover:border-terracotta-500/50 hover:shadow-card transition-all flex flex-col justify-between"
+                >
+                  <div>
+                    <div className="overflow-hidden border-b border-border-subtle bg-canvas-paper">
+                      <EditionImage
+                        src={collection.images.coverUrl}
+                        alt={title}
+                        className="aspect-[16/10] w-full transition-transform duration-300 group-hover:scale-[1.02]"
+                      />
+                    </div>
+
+                    <div className="p-7 space-y-5">
+                      {/* Meta Bar: Month, Year, Season/Theme & Status */}
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border-subtle pb-4">
+                        <div className="flex items-center gap-2 text-xs text-espresso-soft font-sans">
+                          <Calendar className="w-3.5 h-3.5 text-terracotta-600" aria-hidden="true" />
+                          <span>
+                            {monthLabel} {collection.year}
+                          </span>
+                          {(season || theme) && (
+                            <>
+                              <span className="text-border-strong">·</span>
+                              <span className="font-serif italic">{season || theme}</span>
+                            </>
+                          )}
+                        </div>
+                        {getStatusBadge(collection.status)}
+                      </div>
+
+                      {/* Collection Name & Description */}
+                      <div className="space-y-2">
+                        <h3 className="font-serif text-2xl sm:text-3xl font-medium text-espresso-dark group-hover:text-terracotta-700 transition-colors">
+                          {title}
+                        </h3>
+                        {altTitle && (
+                          <p
+                            className={
+                              isKannada
+                                ? 'font-serif text-sm italic text-espresso-soft'
+                                : 'font-kannada text-sm text-espresso-soft'
+                            }
+                          >
+                            {altTitle}
+                          </p>
+                        )}
+                        <p className="text-sm text-espresso-muted leading-relaxed font-sans pt-1">
+                          {description}
+                        </p>
+                      </div>
+
+                      {/* Metadata Tags */}
+                      <div className="flex flex-wrap items-center gap-3 pt-2 text-xs text-espresso-muted">
+                        {theme && (
+                          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-paper bg-canvas-paper border border-border-subtle">
+                            <Palette className="w-3.5 h-3.5 text-terracotta-600" aria-hidden="true" />
+                            <span>{theme}</span>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-paper bg-canvas-paper border border-border-subtle">
+                          <Languages className="w-3.5 h-3.5 text-sage-600" aria-hidden="true" />
+                          <span>{getLanguageLabel(collection)}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-paper bg-canvas-paper border border-border-subtle">
+                          <Package className="w-3.5 h-3.5 text-terracotta-600" aria-hidden="true" />
+                          <span>
+                            {collection.includedItems.length}{' '}
+                            {isKannada ? 'ಸಾಮಗ್ರಿಗಳು' : 'Items Included'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Bottom Card Action & Price */}
+                  <div className="px-7 py-4 bg-canvas-paper/60 border-t border-border flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <span className="text-[11px] text-espresso-soft block">
+                        {t.collections.priceLabel}
+                      </span>
+                      <div className="flex items-baseline gap-1">
+                        <span className="font-serif text-2xl font-bold text-espresso-dark">
+                          {formatINR(collection.price)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <Link
+                      href={`/collections/${collection.slug}`}
+                      className="inline-flex items-center gap-1.5 rounded-paper border border-espresso-main/40 px-3.5 py-1.5 text-xs font-medium text-espresso-main transition-colors hover:border-espresso-main hover:bg-espresso-main/[0.03]"
+                    >
+                      {t.collections.viewCollection}
+                      <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
+                    </Link>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Load More */}
+        {!isLoading && !error && filteredCollections.length > 0 && hasMore && (
+          <div className="flex justify-center pt-2">
+            <Button
+              variant="outline"
+              size="md"
+              onClick={() => setPage((value) => value + 1)}
+              isLoading={isLoadingMore}
+              leftIcon={<ArrowRight className="h-4 w-4" aria-hidden="true" />}
+            >
+              {isKannada ? 'ಹೆಚ್ಚಿನ ಸಂಚಿಕೆಗಳನ್ನು ನೋಡಿ' : 'Load more editions'}
+            </Button>
           </div>
         )}
       </Container>
     </section>
   );
 }
-

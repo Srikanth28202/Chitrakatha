@@ -1,9 +1,10 @@
 import { connectToDatabase } from '@/lib/db';
 import { Edition, IEdition } from '@/models/Edition';
 import { getSeedEditions } from '@/lib/edition-mapper';
+import { PUBLIC_EDITION_STATUSES } from '@/lib/public-edition';
 
 export interface GetEditionsOptions {
-  status?: 'active' | 'upcoming' | 'archived' | 'sold_out' | 'all';
+  status?: 'active' | 'upcoming' | 'sold_out' | 'all';
   month?: string;
   year?: number;
   page?: number;
@@ -33,7 +34,7 @@ export const editionService = {
       const filter: Record<string, unknown> = {};
 
       if (status === 'all') {
-        filter.status = { $ne: 'draft' };
+        filter.status = { $in: PUBLIC_EDITION_STATUSES };
       } else if (status) {
         filter.status = status;
       } else {
@@ -62,15 +63,16 @@ export const editionService = {
       };
     }
 
-    // Static fallback
+    // Static fallback — never expose draft or archived editions.
+    const publicStatuses = new Set<string>(PUBLIC_EDITION_STATUSES);
     const seedRecords = getSeedEditions();
-    let filtered = seedRecords.filter((ed) => ed.status !== 'draft');
+    let filtered = seedRecords.filter(
+      (ed) => typeof ed.status === 'string' && publicStatuses.has(ed.status)
+    );
 
-    if (status === 'all') {
-      // Keep all non-draft editions
-    } else if (status === 'active') {
+    if (!status) {
       filtered = filtered.filter((ed) => ed.status === 'active' || ed.status === 'upcoming');
-    } else if (status) {
+    } else if (status !== 'all') {
       filtered = filtered.filter((ed) => ed.status === status);
     }
 
@@ -96,17 +98,23 @@ export const editionService = {
   async getEditionBySlug(slug: string): Promise<Partial<IEdition> | null> {
     try {
       await connectToDatabase();
-      const edition = await Edition.findOne(
-        { slug, status: { $ne: 'draft' } }
-      ).lean<IEdition>();
+      const edition = await Edition.findOne({
+        slug,
+        status: { $in: PUBLIC_EDITION_STATUSES },
+      }).lean<IEdition>();
 
-      if (edition) return edition;
+      // When the database is reachable, trust its answer: drafts and archived
+      // editions must never be served from the fallback store.
+      return edition ?? null;
     } catch {
-      // Fall through to fallback
+      // Fall through to fallback only when the database is unavailable.
     }
 
-    const fallback = getSeedEditions().find((ed) => ed.slug === slug);
-    return fallback && fallback.status !== 'draft' ? fallback : null;
+    const publicStatuses = new Set<string>(PUBLIC_EDITION_STATUSES);
+    const fallback = getSeedEditions().find(
+      (ed) => ed.slug === slug && typeof ed.status === 'string' && publicStatuses.has(ed.status)
+    );
+    return fallback ?? null;
   },
 
   /**

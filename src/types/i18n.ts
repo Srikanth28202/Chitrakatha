@@ -59,12 +59,14 @@ export interface SiteDictionary {
     description: string;
     filterAll: string;
     filterAvailable: string;
+    filterUpcoming: string;
     filterArchive: string;
     viewCollection: string;
     languageBadge: string;
     priceLabel: string;
     statusAvailable: string;
     statusReserve: string;
+    statusSoldOut: string;
     statusArchived: string;
   };
   whatsInside: {
@@ -104,10 +106,12 @@ export interface SiteDictionary {
     description: string;
     startingFrom: string;
     perMonth: string;
+    perQuarter: string;
     toggleOneTime: string;
     toggleRecurring: string;
     recurringSavings: string;
     reserveButton: string;
+    reserveQuarterlyButton: string;
     inquiryButton: string;
     noCommitmentNote: string;
   };

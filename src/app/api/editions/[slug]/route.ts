@@ -4,8 +4,13 @@ import { Edition } from '@/models/Edition';
 import { editionSlugParamSchema } from '@/lib/validations/edition';
 import { apiSuccess, apiError } from '@/lib/api-response';
 import { getSeedEditions } from '@/lib/edition-mapper';
+import {
+  PUBLIC_EDITION_STATUSES,
+  normalizePublicEdition,
+} from '@/lib/public-edition';
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 const PUBLIC_PROJECTION = {
   _id: 1,
@@ -15,6 +20,7 @@ const PUBLIC_PROJECTION = {
   descriptionEn: 1,
   descriptionKn: 1,
   month: 1,
+  monthNumber: 1,
   year: 1,
   seasonEn: 1,
   seasonKn: 1,
@@ -28,6 +34,8 @@ const PUBLIC_PROJECTION = {
   price: 1,
   recurringPrice: 1,
   stock: 1,
+  startDate: 1,
+  endDate: 1,
   dispatchDate: 1,
   status: 1,
 };
@@ -61,21 +69,40 @@ export async function GET(
 
     if (isConnected) {
       const edition = await Edition.findOne(
-        { slug, status: { $ne: 'draft' } },
+        { slug, status: { $in: PUBLIC_EDITION_STATUSES } },
         PUBLIC_PROJECTION
       ).lean();
 
-      if (edition) {
-        return apiSuccess(edition, 'Edition details retrieved successfully');
+      const normalized = edition ? normalizePublicEdition(edition) : null;
+
+      if (normalized) {
+        return apiSuccess(normalized, 'Edition details retrieved successfully');
       }
+
+      // The database is reachable, so its answer is authoritative. Never
+      // resurrect drafts or archived editions from the fallback store.
+      return apiError(
+        `Edition with slug '${slug}' was not found.`,
+        404,
+        undefined,
+        'EDITION_NOT_FOUND'
+      );
     }
 
-    // Check fallback seed store
-    const fallbackSeed = getSeedEditions().find((ed) => ed.slug === slug);
+    const fallbackSeed = getSeedEditions().find(
+      (edition) =>
+        edition.slug === slug &&
+        (edition.status === 'active' ||
+          edition.status === 'upcoming' ||
+          edition.status === 'sold_out')
+    );
+    const normalizedFallback = fallbackSeed
+      ? normalizePublicEdition(fallbackSeed)
+      : null;
 
-    if (fallbackSeed && fallbackSeed.status !== 'draft') {
+    if (normalizedFallback) {
       return apiSuccess(
-        fallbackSeed,
+        normalizedFallback,
         'Edition details retrieved from backup store',
         { source: 'static_fallback' }
       );
@@ -97,4 +124,3 @@ export async function GET(
     );
   }
 }
-

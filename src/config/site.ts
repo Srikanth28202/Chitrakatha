@@ -17,32 +17,32 @@ export const siteConfig = {
     {
       titleEn: 'Home',
       titleKn: 'ಮುಖಪುಟ',
-      href: '#',
+      href: '/',
     },
     {
       titleEn: 'Our Story',
       titleKn: 'ನಮ್ಮ ಕಥನ',
-      href: '#story',
+      href: '/#story',
     },
     {
       titleEn: 'Collections',
       titleKn: 'ಸಂಗ್ರಹಗಳು',
-      href: '#collections',
+      href: '/#collections',
     },
     {
       titleEn: "What's Inside",
       titleKn: 'ಒಳಗಿರುವುದು ಏನು?',
-      href: '#whats-inside',
+      href: '/#whats-inside',
     },
     {
       titleEn: 'How It Works',
       titleKn: 'ಕಾರ್ಯವಿಧಾನ',
-      href: '#how-it-works',
+      href: '/#how-it-works',
     },
     {
       titleEn: 'FAQ',
       titleKn: 'ಪ್ರಶ್ನೋತ್ತರ',
-      href: '#faq',
+      href: '/#faq',
     },
   ] satisfies NavItem[],
   socials: {

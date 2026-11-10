@@ -17,7 +17,11 @@ const root = process.cwd();
 const wasmDir = path.join(root, 'node_modules', '@next', 'swc-wasm-nodejs');
 const wasmEntry = path.join(wasmDir, 'wasm.js');
 
-if (!process.env.NEXT_TEST_WASM_DIR && existsSync(wasmEntry)) {
+if (
+  process.platform === 'win32' &&
+  !process.env.NEXT_TEST_WASM_DIR &&
+  existsSync(wasmEntry)
+) {
   process.env.NEXT_TEST_WASM_DIR = wasmDir;
 }
 

@@ -4,6 +4,7 @@ export type PaymentProvider = 'razorpay' | 'manual' | 'other';
 export type PaymentRecordStatus =
   | 'created'
   | 'pending'
+  | 'authorized'
   | 'success'
   | 'failed'
   | 'refunded';
@@ -64,7 +65,7 @@ const PaymentSchema = new Schema<IPayment>(
     },
     status: {
       type: String,
-      enum: ['created', 'pending', 'success', 'failed', 'refunded'],
+      enum: ['created', 'pending', 'authorized', 'success', 'failed', 'refunded'],
       default: 'created',
       index: true,
     },
@@ -81,6 +82,19 @@ const PaymentSchema = new Schema<IPayment>(
   {
     timestamps: true,
   }
+);
+
+PaymentSchema.index(
+  { providerOrderId: 1 },
+  { unique: true, sparse: true, name: 'uniq_razorpay_provider_order' }
+);
+PaymentSchema.index(
+  { providerPaymentId: 1 },
+  { unique: true, sparse: true, name: 'uniq_razorpay_provider_payment' }
+);
+PaymentSchema.index(
+  { orderId: 1, provider: 1 },
+  { unique: true, name: 'uniq_payment_order_provider' }
 );
 
 export const Payment: Model<IPayment> =

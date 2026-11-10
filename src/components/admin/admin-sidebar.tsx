@@ -5,12 +5,17 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   BookOpen,
+  CreditCard,
   ExternalLink,
   Feather,
   LayoutDashboard,
   Menu,
   RefreshCw,
+  Settings,
   ShoppingBag,
+  Tags,
+  Truck,
+  Users,
   X,
   type LucideIcon,
 } from 'lucide-react';
@@ -27,11 +32,13 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', href: '/admin', icon: LayoutDashboard, exact: true },
   { label: 'Editions', href: '/admin/editions', icon: BookOpen },
-];
-
-const UPCOMING_ITEMS: { label: string; icon: LucideIcon }[] = [
-  { label: 'Orders', icon: ShoppingBag },
-  { label: 'Subscriptions', icon: RefreshCw },
+  { label: 'Orders', href: '/admin/orders', icon: ShoppingBag },
+  { label: 'Shipments', href: '/admin/shipments', icon: Truck },
+  { label: 'Subscriptions', href: '/admin/subscriptions', icon: RefreshCw },
+  { label: 'Customers', href: '/admin/customers', icon: Users },
+  { label: 'Coupons', href: '/admin/coupons', icon: Tags },
+  { label: 'Payments', href: '/admin/payments', icon: CreditCard },
+  { label: 'Settings', href: '/admin/settings', icon: Settings },
 ];
 
 interface AdminSidebarProps {
@@ -118,29 +125,6 @@ export function AdminSidebar({ admin }: AdminSidebarProps) {
             })}
           </div>
 
-          <p className="px-3 pb-1 pt-5 text-[10px] font-semibold uppercase tracking-[0.2em] text-espresso-faint">
-            Coming soon
-          </p>
-          <div className="space-y-1">
-            {UPCOMING_ITEMS.map((item) => {
-              const Icon = item.icon;
-              return (
-                <div
-                  key={item.label}
-                  className="flex items-center justify-between gap-2 rounded-paper px-3 py-2.5 text-sm text-espresso-faint"
-                  aria-disabled="true"
-                >
-                  <span className="inline-flex items-center gap-2.5">
-                    <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-                    {item.label}
-                  </span>
-                  <span className="rounded-paper border border-border bg-canvas-paper px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-espresso-soft">
-                    Soon
-                  </span>
-                </div>
-              );
-            })}
-          </div>
         </nav>
 
         <div className="border-t border-border-subtle p-4">

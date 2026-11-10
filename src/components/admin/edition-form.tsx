@@ -96,6 +96,13 @@ function createEmptyItem(): AdminEditionFormItem {
   };
 }
 
+function createRowKey(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `row-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 function createDefaultFormData(): AdminEditionFormData {
   const now = new Date();
   const monthNumber = now.getMonth() + 1;
@@ -207,6 +214,12 @@ export function EditionForm({ mode, initialData }: EditionFormProps) {
   const [galleryText, setGalleryText] = useState(() =>
     (initialData?.images.galleryUrls ?? []).join('\n')
   );
+  // Stable React keys for included-item rows, tracked separately from the
+  // editable `id` field so typing an item's internal ID does not remount
+  // the row and drop focus.
+  const [itemRowKeys, setItemRowKeys] = useState<string[]>(() =>
+    (initialData?.includedItems ?? []).map(() => createRowKey())
+  );
   const [slugTouched, setSlugTouched] = useState(Boolean(initialData?.slug));
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -289,6 +302,8 @@ export function EditionForm({ mode, initialData }: EditionFormProps) {
   }
 
   function addItem() {
+    const rowKey = createRowKey();
+    setItemRowKeys((previous) => [...previous, rowKey]);
     setForm((previous) => ({
       ...previous,
       includedItems: [...previous.includedItems, createEmptyItem()],
@@ -305,6 +320,7 @@ export function EditionForm({ mode, initialData }: EditionFormProps) {
   }
 
   function removeItem(index: number) {
+    setItemRowKeys((previous) => previous.filter((_, itemIndex) => itemIndex !== index));
     setForm((previous) => ({
       ...previous,
       includedItems: previous.includedItems.filter((_, itemIndex) => itemIndex !== index),
@@ -772,7 +788,7 @@ export function EditionForm({ mode, initialData }: EditionFormProps) {
 
           {form.includedItems.map((item, index) => (
             <div
-              key={item.id}
+              key={itemRowKeys[index] ?? `row-${index}`}
               className="rounded-paper border border-border-subtle bg-canvas-paper/50 p-4"
             >
               <div className="mb-3 flex items-center justify-between gap-3">

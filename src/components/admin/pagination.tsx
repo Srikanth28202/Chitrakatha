@@ -23,7 +23,7 @@ export function Pagination({ page, totalPages, createHref }: PaginationProps) {
   return (
     <nav
       className="flex flex-wrap items-center justify-between gap-3 pt-2"
-      aria-label="Edition pagination"
+      aria-label="Pagination"
     >
       <p className="text-xs text-espresso-soft">
         Page <span className="font-semibold text-espresso-main">{page}</span> of{' '}

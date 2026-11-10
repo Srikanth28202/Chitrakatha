@@ -7,6 +7,8 @@ export interface SubscriptionOption {
   cadenceKn: string;
   priceInr: number;
   originalPriceInr?: number;
+  /** Length of one billing cycle for recurring plans (1 = monthly, 3 = quarterly). */
+  billingPeriodMonths?: number;
   savingsBadgeEn?: string;
   savingsBadgeKn?: string;
   badgeEn?: string;
@@ -28,6 +30,7 @@ export const subscriptionOptionsData: SubscriptionOption[] = [
     cadenceKn: 'ಪ್ರತಿ ತಿಂಗಳ ಪಾವತಿ · ಯಾವಾಗ ಬೇಕಾದರೂ ನಿಲ್ಲಿಸಿ',
     priceInr: 499,
     originalPriceInr: 599,
+    billingPeriodMonths: 1,
     savingsBadgeEn: 'Save ₹100/box',
     savingsBadgeKn: '₹೧೦೦ ಉಳಿತಾಯ',
     badgeEn: 'Most Loved',
@@ -91,6 +94,7 @@ export const subscriptionOptionsData: SubscriptionOption[] = [
     cadenceKn: 'ಪ್ರತಿ ೩ ತಿಂಗಳಿಗೊಮ್ಮೆ (೩ ಪೆಟ್ಟಿಗೆಗಳು)',
     priceInr: 1399,
     originalPriceInr: 1797,
+    billingPeriodMonths: 3,
     savingsBadgeEn: 'Save 22%',
     savingsBadgeKn: '೨೨% ಉಳಿತಾಯ',
     badgeEn: 'Seasonal Special',

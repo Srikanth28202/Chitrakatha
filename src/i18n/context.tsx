@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Locale, SiteDictionary } from '@/types/i18n';
-import { DEFAULT_LOCALE, STORAGE_KEYS } from '@/config/constants';
+import { DEFAULT_LOCALE, LOCALE_COOKIE, STORAGE_KEYS } from '@/config/constants';
 import { en } from './locales/en';
 import { kn } from './locales/kn';
 
@@ -30,6 +30,12 @@ export function LanguageProvider({
 }) {
   const [locale, setLocaleState] = useState<Locale>(initialLocale);
 
+  // Keep the document language attribute in sync so screen readers and
+  // translation tools pick up the active locale.
+  useEffect(() => {
+    document.documentElement.lang = locale;
+  }, [locale]);
+
   useEffect(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.LOCALE) as Locale | null;
@@ -45,7 +51,9 @@ export function LanguageProvider({
     setLocaleState(newLocale);
     try {
       localStorage.setItem(STORAGE_KEYS.LOCALE, newLocale);
-      document.documentElement.lang = newLocale;
+      // The cookie is what the server reads before render, so a returning
+      // Kannada visitor never sees an English-first flash.
+      document.cookie = `${LOCALE_COOKIE}=${newLocale}; path=/; max-age=31536000; samesite=lax`;
     } catch {
       // Ignore storage errors
     }

@@ -26,7 +26,7 @@ export function AnnouncementBar() {
         </div>
 
         <Link
-          href="#collections"
+          href="/#collections"
           className="inline-flex items-center gap-1 font-medium text-terracotta-200 hover:text-white transition-colors shrink-0 group focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-terracotta-400 rounded-paper"
         >
           <span>{t.announcement.action}</span>

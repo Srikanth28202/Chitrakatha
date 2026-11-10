@@ -3,9 +3,16 @@ import { connectToDatabase } from '@/lib/db';
 import { Edition } from '@/models/Edition';
 import { editionQuerySchema } from '@/lib/validations/edition';
 import { apiSuccess, apiError } from '@/lib/api-response';
+import { enforceRateLimit } from '@/lib/rate-limit';
 import { getSeedEditions } from '@/lib/edition-mapper';
+import {
+  PUBLIC_EDITION_STATUSES,
+  normalizePublicEdition,
+} from '@/lib/public-edition';
+import type { PublicEdition } from '@/types/edition';
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 const PUBLIC_PROJECTION = {
   _id: 1,
@@ -15,6 +22,7 @@ const PUBLIC_PROJECTION = {
   descriptionEn: 1,
   descriptionKn: 1,
   month: 1,
+  monthNumber: 1,
   year: 1,
   seasonEn: 1,
   seasonKn: 1,
@@ -28,11 +36,42 @@ const PUBLIC_PROJECTION = {
   price: 1,
   recurringPrice: 1,
   stock: 1,
+  startDate: 1,
+  endDate: 1,
   dispatchDate: 1,
   status: 1,
 };
 
+const DEFAULT_PUBLIC_STATUSES = ['active', 'upcoming'] as const;
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function toPublicEditions(values: unknown[]): PublicEdition[] {
+  return values
+    .map(normalizePublicEdition)
+    .filter((edition): edition is PublicEdition => edition !== null);
+}
+
+function sortByPublicationDate<T extends { year?: number; monthNumber?: number }>(
+  editions: T[]
+): T[] {
+  return [...editions].sort((a, b) => {
+    const yearDiff = (b.year ?? 0) - (a.year ?? 0);
+    if (yearDiff !== 0) return yearDiff;
+    return (b.monthNumber ?? 0) - (a.monthNumber ?? 0);
+  });
+}
+
 export async function GET(request: NextRequest) {
+  const limited = enforceRateLimit(request, {
+    bucket: 'editions',
+    limit: 120,
+    windowMs: 60_000,
+  });
+  if (limited) return limited;
+
   try {
     const searchParams = Object.fromEntries(request.nextUrl.searchParams);
     const parsedQuery = editionQuerySchema.safeParse(searchParams);
@@ -48,7 +87,6 @@ export async function GET(request: NextRequest) {
 
     const { status, month, year, page, limit } = parsedQuery.data;
 
-    // Attempt database connection
     let isConnected = false;
     try {
       await connectToDatabase();
@@ -58,31 +96,27 @@ export async function GET(request: NextRequest) {
     }
 
     if (isConnected) {
-      // Build MongoDB query filter
       const filter: Record<string, unknown> = {};
 
       if (status === 'all') {
-        filter.status = { $ne: 'draft' };
+        filter.status = { $in: PUBLIC_EDITION_STATUSES };
       } else if (status) {
         filter.status = status;
       } else {
-        // Default: return active and upcoming editions
-        filter.status = { $in: ['active', 'upcoming'] };
+        filter.status = { $in: DEFAULT_PUBLIC_STATUSES };
       }
 
       if (month) {
-        filter.month = new RegExp(`^${month}$`, 'i');
+        filter.month = new RegExp(`^${escapeRegExp(month)}$`, 'i');
       }
 
       if (year) {
         filter.year = year;
       }
 
-      // Check if editions collection needs initial population
       const totalCount = await Edition.countDocuments(filter);
 
       if (totalCount === 0 && (await Edition.countDocuments({})) === 0) {
-        // Initial auto-seed from clean mock data mapping
         const seedData = getSeedEditions();
         await Edition.insertMany(seedData);
       }
@@ -96,44 +130,48 @@ export async function GET(request: NextRequest) {
         .limit(limit)
         .lean();
 
-      return apiSuccess(
-        editions,
-        'Editions retrieved successfully',
-        {
-          total,
-          page,
-          limit,
-          totalPages: Math.ceil(total / limit),
-          source: 'database',
-        }
-      );
+      return apiSuccess(toPublicEditions(editions), 'Editions retrieved successfully', {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+        source: 'database',
+      });
     }
 
-    // Graceful fallback to static seed data when database is offline
-    const seedRecords = getSeedEditions();
-    let filtered = seedRecords.filter((ed) => ed.status !== 'draft');
+    const publicSeeds = getSeedEditions().filter(
+      (edition) =>
+        edition.status === 'active' ||
+        edition.status === 'upcoming' ||
+        edition.status === 'sold_out'
+    );
 
-    if (status === 'all') {
-      // Keep all non-draft editions
-    } else if (status === 'active') {
-      filtered = filtered.filter((ed) => ed.status === 'active' || ed.status === 'upcoming');
-    } else if (status) {
-      filtered = filtered.filter((ed) => ed.status === status);
+    let filtered = publicSeeds;
+
+    if (!status) {
+      filtered = publicSeeds.filter(
+        (edition) => edition.status === 'active' || edition.status === 'upcoming'
+      );
+    } else if (status !== 'all') {
+      filtered = publicSeeds.filter((edition) => edition.status === status);
     }
 
     if (month) {
-      filtered = filtered.filter((ed) => ed.month?.toLowerCase() === month.toLowerCase());
+      filtered = filtered.filter(
+        (edition) => edition.month?.toLowerCase() === month.toLowerCase()
+      );
     }
 
     if (year) {
-      filtered = filtered.filter((ed) => ed.year === year);
+      filtered = filtered.filter((edition) => edition.year === year);
     }
 
-    const total = filtered.length;
-    const paginated = filtered.slice((page - 1) * limit, page * limit);
+    const sorted = sortByPublicationDate(filtered);
+    const total = sorted.length;
+    const paginated = sorted.slice((page - 1) * limit, page * limit);
 
     return apiSuccess(
-      paginated,
+      toPublicEditions(paginated),
       'Editions retrieved from backup store',
       {
         total,

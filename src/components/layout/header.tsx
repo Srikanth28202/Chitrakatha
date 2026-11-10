@@ -7,10 +7,13 @@ import { siteConfig } from '@/config/site';
 import { Container } from '@/components/ui/container';
 import { Button } from '@/components/ui/button';
 import { LanguageSwitcher } from './language-switcher';
-import { Menu, X, Feather } from 'lucide-react';
+import { useCart } from '@/components/cart/cart-provider';
+import { Menu, X, Feather, ShoppingBag } from 'lucide-react';
 
 export function Header() {
   const { t, isKannada } = useLanguage();
+  const { totalQuantity, isReady } = useCart();
+  const cartCount = isReady ? totalQuantity : 0;
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   return (
@@ -18,7 +21,7 @@ export function Header() {
       <Container width="wide" className="flex items-center justify-between h-20">
         {/* Brand Logo & Bilingual Label */}
         <Link
-          href="#"
+          href="/"
           className="group flex items-center gap-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-terracotta-600 rounded-paper"
         >
           <div className="w-10 h-10 rounded-paper bg-terracotta-100/80 border border-terracotta-200 flex items-center justify-center text-terracotta-700 group-hover:bg-terracotta-200/90 transition-colors shadow-subtle">
@@ -54,9 +57,24 @@ export function Header() {
         </nav>
 
         {/* Actions & Switcher */}
-        <div className="hidden lg:flex items-center gap-4">
+        <div className="hidden lg:flex items-center gap-3">
+          <Link
+            href="/cart"
+            className="relative p-2 rounded-paper text-espresso-muted hover:text-espresso-main hover:bg-canvas-paper border border-transparent hover:border-border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-terracotta-600"
+            aria-label={
+              isKannada ? `ಖರೀದಿ ಬುಟ್ಟಿ, ${cartCount} ವಸ್ತುಗಳು` : `Shopping cart, ${cartCount} items`
+            }
+            title={isKannada ? 'ಖರೀದಿ ಬುಟ್ಟಿ' : 'Shopping cart'}
+          >
+            <ShoppingBag className="w-5 h-5" aria-hidden="true" />
+            {cartCount > 0 && (
+              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-terracotta-600 px-1 text-[10px] font-bold leading-none text-white">
+                {cartCount > 99 ? '99+' : cartCount}
+              </span>
+            )}
+          </Link>
           <LanguageSwitcher />
-          <Link href="#subscription">
+          <Link href="/#subscription">
             <Button size="sm" variant="primary">
               {t.nav.subscribeCta}
             </Button>
@@ -64,7 +82,21 @@ export function Header() {
         </div>
 
         {/* Mobile Actions Button */}
-        <div className="flex lg:hidden items-center gap-2">
+        <div className="flex lg:hidden items-center gap-1.5">
+          <Link
+            href="/cart"
+            className="relative p-2 rounded-paper text-espresso-muted hover:text-espresso-main hover:bg-canvas-paper border border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-terracotta-600"
+            aria-label={
+              isKannada ? `ಖರೀದಿ ಬುಟ್ಟಿ, ${cartCount} ವಸ್ತುಗಳು` : `Shopping cart, ${cartCount} items`
+            }
+          >
+            <ShoppingBag className="w-5 h-5" aria-hidden="true" />
+            {cartCount > 0 && (
+              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-terracotta-600 px-1 text-[10px] font-bold leading-none text-white">
+                {cartCount > 99 ? '99+' : cartCount}
+              </span>
+            )}
+          </Link>
           <LanguageSwitcher />
           <button
             type="button"
@@ -93,7 +125,7 @@ export function Header() {
               </Link>
             ))}
             <div className="pt-3">
-              <Link href="#subscription" onClick={() => setIsMobileMenuOpen(false)}>
+              <Link href="/#subscription" onClick={() => setIsMobileMenuOpen(false)}>
                 <Button size="md" variant="primary" className="w-full">
                   {t.nav.subscribeCta}
                 </Button>
